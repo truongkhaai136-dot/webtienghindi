@@ -12,6 +12,7 @@
         #transcript { max-width: 100%; margin: 0 auto; }
         .line { padding: 8px; border-bottom: 1px solid #ccc; cursor: pointer; position: relative; outline: none; }
         .line:hover { background-color: #eef; }
+        /* Add a visual indicator when a line is selected */
         .line:focus { box-shadow: 0 0 0 2px #2196f3; }
         .user { font-weight: bold; }
         .machine { color: gray; margin-left: 10px; }
@@ -57,7 +58,7 @@
         <h2>Pane 1</h2>
         <div style="margin: 20px auto; max-width: 100%;">
             <label>🔗 YouTube Video ID: <input class="videoIdInput" style="width: 300px;" type="text" value=""/></label><br/><br/>
-            <label>📝 Hindi Transcript: <textarea class="scriptEN" rows="6" style="width: 100%;"></textarea></label><br/><br/>
+            <label>📝 English Transcript: <textarea class="scriptEN" rows="6" style="width: 100%;"></textarea></label><br/><br/>
             <label>🇻🇳 Vietnamese Transcript: <textarea class="scriptVI" rows="6" style="width: 100%;"></textarea></label><br/><br/>
             <br/>
             <button class="loadBtn">▶️ Load Video + Transcript</button><br/>
@@ -68,7 +69,7 @@
             </label>
         </div>
         <div class="player-container"></div>
-        <h3>Transcript (HI + VI)</h3>
+        <h3>Transcript (EN + VI)</h3>
         <div class="transcript"></div>
     </div>
 
@@ -76,7 +77,7 @@
         <h2>Pane 2</h2>
         <div style="margin: 20px auto; max-width: 100%;">
             <label>🔗 YouTube Video ID: <input class="videoIdInput" style="width: 300px;" type="text" value=""/></label><br/><br/>
-            <label>📝 Hindi Transcript: <textarea class="scriptEN" rows="6" style="width: 100%;"></textarea></label><br/><br/>
+            <label>📝 English Transcript: <textarea class="scriptEN" rows="6" style="width: 100%;"></textarea></label><br/><br/>
             <label>🇻🇳 Vietnamese Transcript: <textarea class="scriptVI" rows="6" style="width: 100%;"></textarea></label><br/><br/>
             <br/>
             <button class="loadBtn">▶️ Load Video + Transcript</button><br/>
@@ -87,7 +88,7 @@
             </label>
         </div>
         <div class="player-container"></div>
-        <h3>Transcript (HI + VI)</h3>
+        <h3>Transcript (EN + VI)</h3>
         <div class="transcript"></div>
     </div>
 </div>
@@ -275,7 +276,7 @@ class TranscriptApp {
             let content = line.innerHTML
                 .replace(/<button[^>]*>.*?<\/button>/g, '')  
                 .replace(/<div class="result">.*?<\/div>/g, '')  
-                .replace(/<div class="playback-container">.*?<\/div>/g, '')
+                .replace(/<div class="playback-container">.*?<\/div>/g, '') // Thêm dòng này
                 .replace(/<br\s*\/?>/gi, '\n')
                 .replace(/\[\d+:\d+\]/g, '')
                 .replace(/\[VI\]/g, '')
@@ -316,6 +317,7 @@ class TranscriptApp {
                 this.videoIdInput.value = data.videoId || '';
                 this.scriptEN.value = data.enText || '';
                 this.scriptVI.value = data.viText || '';
+                this.loadVideoAndTranscript(); // auto render transcript after loading file
             } catch (err) {
                 alert('Invalid JSON file.');
             }
@@ -324,6 +326,7 @@ class TranscriptApp {
     }
 
     startSpeechRecognition(div, expectedText) {
+        // Xóa kết quả và nút nghe lại cũ
         const existingResult = div.querySelector('.result');
         if (existingResult) existingResult.remove();
         const existingPlayback = div.querySelector('.playback-container');
@@ -334,8 +337,10 @@ class TranscriptApp {
             return;
         }
 
+        // 1. Xin quyền truy cập micro
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then(stream => {
+                // ---- Bắt đầu ghi âm ----
                 const mediaRecorder = new MediaRecorder(stream);
                 const audioChunks = [];
 
@@ -343,6 +348,7 @@ class TranscriptApp {
                     audioChunks.push(event.data);
                 };
 
+                // Khi ghi âm dừng, tạo nút nghe lại
                 mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                     const audioUrl = URL.createObjectURL(audioBlob);
@@ -361,6 +367,7 @@ class TranscriptApp {
                 
                 mediaRecorder.start();
 
+                // ---- Bắt đầu nhận dạng giọng nói ----
                 const recognition = new webkitSpeechRecognition();
                 recognition.lang = 'hi-IN';
                 recognition.interimResults = false;
@@ -368,7 +375,7 @@ class TranscriptApp {
                 
                 recognition.onend = () => {
                     mediaRecorder.stop();
-                    stream.getTracks().forEach(track => track.stop());
+                    stream.getTracks().forEach(track => track.stop()); // Tắt micro
                 };
 
                 recognition.onresult = (event) => {
